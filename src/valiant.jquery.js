@@ -337,6 +337,7 @@ three.js r65 or higher
             this.element.addEventListener( 'touchstart', this.onMouseDown.bind(this), false);
             this.element.addEventListener( 'mouseup', this.onMouseUp.bind(this), false);
             this.element.addEventListener( 'touchend', this.onMouseUp.bind(this), false);
+            this.element.addEventListener( 'dblclick', this.restartVideo.bind(this), false);
 			
 			if(this.options.keyboardControls){
 				this.element.addEventListener('keydown',this.onKeyDown.bind(this), false);
@@ -475,9 +476,10 @@ three.js r65 or higher
             this._dragStart.y = event.pageY;
         },
 
-        onProgressClick: function(event) {
+        onProgressClick: function(event, newPercent) {
             if(this._isVideo && this._video.readyState === this._video.HAVE_ENOUGH_DATA) {
-                var percent =  this.relativeX / $(this.element).find('canvas').width() * 100;
+                var percent =  newPercent != null ? newPercent : this.relativeX / $(this.element).find('canvas').width() * 100;
+
                 $(this.element).find('.controlsWrapper > .valiant-progress-bar')[0].children[0].setAttribute("style", "width:" + percent + "%;");
                 $(this.element).find('.controlsWrapper > .valiant-progress-bar')[0].children[1].setAttribute("style", "width:" + (100 - percent) + "%;");
                 this._video.currentTime = this._video.duration * percent / 100;
@@ -589,6 +591,12 @@ three.js r65 or higher
 				muteButton.click();
 			}
 		},
+
+        restartVideo: function (event) {
+            if (this._videoReady) {
+                this.onProgressClick(event, 0);
+            }
+        },
 
         animate: function() {
             // set our animate function to fire next time a frame is ready
