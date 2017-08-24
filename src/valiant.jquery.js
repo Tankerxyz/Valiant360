@@ -511,6 +511,12 @@ three.js r65 or higher
 		
 		onKeyDown: function(event) {
 		   var keyCode = event.keyCode;
+           var key = event.key;
+           var CHAR = {
+               MINUS: '-',
+               PLUS: '+'
+           }
+
 		   if (keyCode >= 37 && keyCode <= 40) {
 			   event.preventDefault();
 			   this._keydown = true;
@@ -523,6 +529,24 @@ three.js r65 or higher
                if (!this._videoLoading) {
                    $(this.element).find('.playButton').trigger('click');
                }
+           } else if (key == CHAR.MINUS || key == CHAR.PLUS) {
+               var wheelSpeed = -0.01;
+               var delta = 120;
+
+               if ( key == CHAR.MINUS ) {
+                   this._fov -= delta * wheelSpeed;
+               } else if ( key == CHAR.PLUS ) {
+                   this._fov -= -delta * wheelSpeed;
+               }
+
+               if(this._fov < this.options.fovMin) {
+                   this._fov = this.options.fovMin;
+               } else if(this._fov > this.options.fovMax) {
+                   this._fov = this.options.fovMax;
+               }
+
+               this._camera.setLens(this._fov);
+               event.preventDefault();
            }
 		},
 		
