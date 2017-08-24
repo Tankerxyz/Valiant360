@@ -61,7 +61,8 @@ three.js r65 or higher
             debug: false,
             flatProjection: false,
             autoplay: true,
-            useBuffering: true
+            useBuffering: true,
+            usePreview: true,
         };
 
     // The actual plugin constructor
@@ -187,10 +188,17 @@ three.js r65 or higher
 										</div> \
 									</div>';
                 $(this.element).append(loadingHTML);
+                this.showWaiting();
 				
                 // create off-dom video player
                 this._video = document.createElement( 'video' );
                 this._video.setAttribute('crossorigin', this.options.crossOrigin);
+
+                if (this.options.usePreview) {
+                    this._video.preload = "auto";
+                    this._video.src = $(this.element).attr('data-video-src');
+                }
+
                 this._video.style.display = 'none';
                 $(this.element).append( this._video );
                 this._video.loop = this.options.loop;
@@ -272,6 +280,10 @@ three.js r65 or higher
                     self.hideWaiting();
                     self.clearProgressLoading();
                     isWaiting = false;
+                });
+
+                this._video.addEventListener('loadedmetadata', function() {
+                    self.hideWaiting();
                 });
 
                 if (this.options.autoplay) {
