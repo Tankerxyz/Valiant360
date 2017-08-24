@@ -517,7 +517,13 @@ three.js r65 or higher
 			   var pressEvent = document.createEvent('CustomEvent');
 			   pressEvent.initCustomEvent("keyArrowPress",true,true,{'keyCode':keyCode});
 			   this.element.dispatchEvent(pressEvent);
-		   }
+		   } else if (keyCode == 32) {
+               event.preventDefault();
+
+               if (!this._videoLoading) {
+                   $(this.element).find('.playButton').trigger('click');
+               }
+           }
 		},
 		
 		onKeyUp: function (event) {
