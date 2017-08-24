@@ -60,7 +60,8 @@ three.js r65 or higher
 			volume: 0.5,
             debug: false,
             flatProjection: false,
-            autoplay: true
+            autoplay: true,
+            useBuffering: true
         };
 
     // The actual plugin constructor
@@ -181,9 +182,11 @@ three.js r65 or higher
 				var loadingHTML =  '<div class="loading"> \
 										<div class="icon waiting-icon"></div> \
 										<div class="icon error-icon"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i></div> \
+										<div class="progress">\
+										    <span class="progress-value"></span>\
+										</div> \
 									</div>';
-                $(this.element).append(loadingHTML);				
-				this.showWaiting();
+                $(this.element).append(loadingHTML);
 				
                 // create off-dom video player
                 this._video = document.createElement( 'video' );
@@ -191,8 +194,8 @@ three.js r65 or higher
                 this._video.style.display = 'none';
                 $(this.element).append( this._video );
                 this._video.loop = this.options.loop;
-                this._video.muted = this.options.muted;
 				this._video.volume = this.options.volume;
+                this._video.muted = this.options.muted;
 
                 // attach video player event listeners
                 this._video.addEventListener("ended", function() {
@@ -254,39 +257,26 @@ three.js r65 or higher
                         self._videocanvas.height = self._video.videoHeight;
 						createAnimation();
                     });
-                }else{
+                } else {
 					this._texture = new THREE.Texture( this._video );
 				}
 
-                //force browser caching of the video to solve rendering errors with big videos
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', $(this.element).attr('data-video-src'), true);
-                xhr.responseType = 'blob';
-                xhr.onload = function (e) {
-                    if (this.status === 200) {
-                        var vid = (window.webkitURL ? webkitURL : URL).createObjectURL(this.response);
-                        //Video Play Listener, fires after video loads
-                        $(self._video).bind("canplaythrough", function () {
-                            if (self.options.autoplay === true) {
-                                self.hideWaiting();
-                                self.play();
-                                self._videoReady = true;
-                            }
-                        });
+                var isWaiting = false;
 
-						// set the video src and begin loading
-                        self._video.src = vid;
-                    }
-                };
-                xhr.onreadystatechange = function (oEvent) {
-                    if (xhr.readyState === 4) {
-                        if (xhr.status !== 200) {
-                            console.error('Video error: status ' + xhr.status);
-                            self.showError();
-                        }
-                    }
-                };
-                xhr.send();
+                this._video.addEventListener('waiting', function() {
+                    self.showWaiting();
+                    isWaiting = true;
+                });
+
+                this._video.addEventListener('playing', function() {
+                    self.hideWaiting();
+                    self.clearProgressLoading();
+                    isWaiting = false;
+                });
+
+                if (this.options.autoplay) {
+                    this.play();
+                }
 
 				if(!isIE){
 					createAnimation();
@@ -650,13 +640,95 @@ three.js r65 or higher
 
         // Video specific functions, exposed to controller
         play: function() {
-            //code to play media
-            this._video.play();
+
+            if (this._videoReady) {
+                this._video.play();
+            } else {
+
+                if (this.options.useBuffering) {
+                    this.startLoadingBufferingVideo(true);
+                } else {
+                    this.startLoadingXHRVideo(true);
+                }
+            }
         },
 
         pause: function() {
             //code to stop media
             this._video.pause();
+        },
+
+        startLoadingBufferingVideo: function(forcePlay) {
+            var self = this;
+            this.showWaiting();
+            this._videoLoading = true;
+            self._videoReady = false;
+
+            this._video.onloadeddata = function(){
+                self._video.onseeked = function(){
+                    if(self._video.seekable.end(0) >= self._video.duration-0.1){
+
+                        self.hideWaiting();
+                        self._videoLoading = false;
+                        self._videoReady = true;
+                        if (self.options.autoplay === true || forcePlay) {
+                            self.play();
+                        }
+
+                    } else {
+                        self._video.currentTime = self._video.buffered.end(0); // Seek ahead to force more buffering
+                    }
+                };
+                self._video.currentTime = 0; // first seek to trigger the event
+            };
+
+            this._video.src = $(this.element).attr('data-video-src');
+        },
+
+        startLoadingXHRVideo: function(forcePlay) {
+            var self = this;
+            if (this._videoLoading) return;
+
+            this.showWaiting();
+            this._videoLoading = true;
+            self._videoReady = false;
+
+            // force browser caching of the video to solve rendering errors with big videos
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', $(this.element).attr('data-video-src'), true);
+            xhr.responseType = 'blob';
+            xhr.onload = function (e) {
+                if (this.status === 200) {
+                    var vid = (window.webkitURL ? webkitURL : URL).createObjectURL(this.response);
+                    //Video Play Listener, fires after video loads
+                    $(self._video).bind("canplaythrough", function () {
+                        self.hideWaiting();
+                        self._videoLoading = false;
+                        self._videoReady = true;
+                        if (self.options.autoplay === true || forcePlay) {
+                            self.play();
+                        }
+                    });
+
+                    // set the video src and begin loading
+                    self._video.src = vid;
+                }
+            };
+
+            xhr.onprogress = function(event) {
+                var percent = ~~(event.loaded / event.total * 100);
+                self.updateProgressLoading(percent);
+            };
+
+            xhr.onreadystatechange = function (oEvent) {
+                if (xhr.readyState === 4) {
+                    if (xhr.status !== 200) {
+                        console.error('Video error: status ' + xhr.status);
+                        self.showError();
+                    }
+                }
+            };
+            xhr.send();
         },
 
         loadVideo: function(videoFile) {
@@ -714,6 +786,16 @@ three.js r65 or higher
             loading.show();
         },
 
+        updateProgressLoading: function (value) {
+            var loading = $(this.element).find('.loading');
+            loading.find('.progress-value').text(value + '%');
+        },
+
+        clearProgressLoading: function() {
+            var loading = $(this.element).find('.loading');
+            loading.find('.progress-value').text('');
+        },
+
         destroy: function() {
             window.cancelAnimationFrame(this._requestAnimationId);
             this._requestAnimationId = '';
@@ -727,6 +809,9 @@ three.js r65 or higher
     };
 
     $.fn[pluginName] = function ( options ) {
+        // use pluginArguments instead of this.each arguments, otherwise Valiant360('loadVideo', 'path/to/video') path argument will be missing
+        var pluginArguments = arguments;
+
         return this.each(function () {
             if(typeof options === 'object' || !options) {
                 // A really lightweight plugin wrapper around the constructor,
@@ -736,8 +821,8 @@ three.js r65 or higher
                     $.data(this, "plugin_" + pluginName, this.plugin);
                 }
             } else if(this.plugin[options]) {
-                // Allows plugin methods to be called
-                return this.plugin[options].apply(this.plugin, Array.prototype.slice.call(arguments, 1))
+                // Allows plugin methods to be called - use pluginArguments instead of this.each arguments
+                return this.plugin[options].apply(this.plugin, Array.prototype.slice.call(pluginArguments, 1));
             }
         });
     };
