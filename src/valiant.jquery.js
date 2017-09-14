@@ -108,6 +108,11 @@ three.js r65 or higher
             this.tourParams = null;
             this.tourStarted = false;
 
+            this.CONST = {
+                MAX_LON: 360,
+                MIN_LON: 0
+            };
+
             this._lat = this.options.lat;
             this._lon = this.options.lon;
             this._fov = this.options.fov;
@@ -481,7 +486,7 @@ three.js r65 or higher
                 this.currentTourPos = tours.length - 1;
             }
 
-            this.updateTourPosition();
+            this.updateTourPosition('left');
         },
 
         onTourUpClick: function (event) {
@@ -514,16 +519,15 @@ three.js r65 or higher
                 this.currentTourPos = 0;
             }
 
-            this.updateTourPosition();
+            this.updateTourPosition('right');
         },
 
-        updateTourPosition: function () {
+        updateTourPosition: function (direction) {
             var currentTour = this.getCurrentTour();
 
-            this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, 250);
 
-            // this._lat = currentTour.pos.lat;
-            // this._lon = currentTour.pos.lon;
+
+            this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, 1000, direction);
 
             console.log('currentTour: ', currentTour);
         },
@@ -545,30 +549,64 @@ three.js r65 or higher
                 });
         },
 
-        setEasyPosition: function (lat, lon, time) {
+        setEasyPosition: function (lat, lon, time, direction) {
 
-            var stepLat = ((lat - this._lat) / time) * 10;
-            var stepLon = ((lon - this._lon) / time) * 10;
+            const isRight = direction === 'right';
+            const isLeft = direction === 'left';
+            const interval = 10;
+            var stepLat = ((lat - this._lat) / time) * interval;
+
+            // todo refactor
+            if (isRight) {
+                var needToUpdateLon = (
+                    (lon < this._lon ? (this.CONST.MAX_LON + lon) : lon)
+                    - this._lon);
+                var stepLon = (needToUpdateLon / time) * interval;
+            } else if (isLeft) {
+                var needToUpdateLon = this._lon < lon ?
+                    (this.CONST.MAX_LON - lon) + this._lon
+                    : this._lon - lon;
+                var stepLon = (needToUpdateLon / time) * interval;
+            } else {
+                var stepLon = ((lon - this._lon) / time) * interval;
+            }
 
             var startDate = Date.now();
 
-            let count = time / 10;
+            let count = time / interval;
 
             if (this.h_interval) {
                 clearInterval(this.h_interval);
             }
 
+            // console.log(lon, this._lon, needToUpdateLon, stepLon);
+
             const fn = () => {
-
                 if (count-- <= 1) { clearInterval(this.h_interval); this.h_interval = null; }
-                this._lat += stepLat;
-                this._lon += stepLon;
 
-                // console.log(Date.now() - startDate, this._lat, this._lon);
+                // todo refactor
+                if (isRight) {
+                    this._lon += stepLon;
+
+                    if (this._lon > this.CONST.MAX_LON) {
+                        this._lon = this._lon - this.CONST.MAX_LON;
+                    }
+                } else if (isLeft) {
+                    this._lon -= stepLon;
+
+                    if (this._lon < this.CONST.MIN_LON) {
+                        this._lon = this._lon + this.CONST.MAX_LON;
+                    }
+                } else {
+                    this._lon += stepLon;
+                    this._lat += stepLat;
+                }
+
+                // console.log(Date.now() - startDate, count, this._lat, this._lon);
             }
 
             fn();
-            this.h_interval = setInterval(fn.bind(this), 10);
+            this.h_interval = setInterval(fn.bind(this), interval);
         },
 
         isMobile: function () {
