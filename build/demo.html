@@ -11,41 +11,45 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 <!DOCTYPE HTML>
 <html lang="en">
-	<head>
-		<title>Valiant 360 Pano Player</title>
-		<meta charset="utf-8">
 
-		<!-- Valiant360 control styles -->
-		<link rel="stylesheet" type="text/css" href="css/valiant360.css" />
+<head>
+	<title>Valiant 360 Pano Player</title>
+	<meta charset="utf-8">
 
-	</head>
-	<body>
+	<!-- Valiant360 control styles -->
+	<link rel="stylesheet" type="text/css" href="css/valiant360.css" />
 
-		<div class="valiantPhoto" data-video-src="overpass-clip.mp4" style="width: 480px; height: 380px;"></div>
+</head>
 
-		<div class="valiantPhoto" data-photo-src="equirectangular-screenshot.jpg" style="width: 480px; height: 380px;"></div>
+<body>
 
-		<script type="text/javascript" src="js/jquery-1.7.2.min.js"></script>
-		<script type="text/javascript" src="js/three.min.js"></script>
+	<div class="valiantPhoto" data-video-src="overpass-clip.mp4" style="width: 480px; height: 380px;"></div>
 
-		<!-- Valiant360 plugin, load after jQuery and Three.js -->
-		<script type="text/javascript" src="jquery.valiant360.js"></script>
+	<div class="valiantPhoto" data-photo-src="equirectangular-screenshot.jpg" style="width: 480px; height: 380px;"></div>
 
-		<script type="text/javascript">
-			$(document).ready(function() {
-				$('.valiantPhoto').Valiant360();
-			});
-		</script>
+	<script type="text/javascript" src="js/jquery-1.7.2.min.js"></script>
+	<script type="text/javascript" src="js/three.min.js"></script>
 
-		<script>
-		  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-		  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-		  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-		  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+	<!-- Valiant360 plugin, load after jQuery and Three.js -->
+	<script type="text/javascript" src="jquery.valiant360.js"></script>
 
-		  ga('create', 'UA-608903-14', 'flimshaw.net');
-		  ga('send', 'pageview');
+	<script type="text/javascript">
+		$(document).ready(function () {
+			$('.valiantPhoto').Valiant360();
+		});
+	</script>
 
-		</script>
-	</body>
+	<script>
+		(function (i, s, o, g, r, a, m) {
+		i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
+			(i[r].q = i[r].q || []).push(arguments)		
+}, i[r].l = 1 * new Date(); a = s.createElement(o),
+			m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
+		})(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
+
+		ga('create', 'UA-608903-14', 'flimshaw.net');
+		ga('send', 'pageview');
+	</script>
+</body>
+
 </html>

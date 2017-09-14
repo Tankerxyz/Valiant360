@@ -1,14 +1,14 @@
 /*global module:false*/
-module.exports = function(grunt) {
+module.exports = function (grunt) {
 
   // Project configuration.
   grunt.initConfig({
     // Metadata.
     pkg: grunt.file.readJSON('package.json'),
     banner: '/*! <%= pkg.title || pkg.name %> - v<%= pkg.version %> - <%= grunt.template.today("yyyy-mm-dd") %>\n' +
-      ' <%= pkg.homepage ? "* " + pkg.homepage + "\\n" : "" %>' +
-      ' * Copyright (c) <%= grunt.template.today("yyyy") %> <%= pkg.author %>;' +
-      ' Licensed <%= pkg.license %> */\n\n',
+    ' <%= pkg.homepage ? "* " + pkg.homepage + "\\n" : "" %>' +
+    ' * Copyright (c) <%= grunt.template.today("yyyy") %> <%= pkg.author %>;' +
+    ' Licensed <%= pkg.license %> */\n\n',
     // Task configuration.
     concat: {
       options: {
@@ -24,6 +24,7 @@ module.exports = function(grunt) {
         files: [
           { expand: true, cwd: 'src/css/fonts/', src: ["*"], dest: "build/css/fonts/" },
           { expand: true, cwd: 'demo/js', src: ["three.min.js", "jquery-1.7.2.min.js"], dest: "build/js" },
+          { expand: true, cwd: 'demo/img', src: "*", dest: "build/img" },
           { src: ['README.md'], dest: "build/README.md" }
         ]
       },
@@ -74,7 +75,7 @@ module.exports = function(grunt) {
         }
       },
       lib: {
-        src: 'src/valiantRefactor.js'
+        src: 'src/valiantRefactor.js',
       },
       gruntfile: {
         src: 'Gruntfile.js'
@@ -127,9 +128,9 @@ module.exports = function(grunt) {
     },
     rsync: {
       options: {
-          args: ["--progress"],
-          exclude: [".git*","*.scss","node_modules"],
-          recursive: true
+        args: ["--progress"],
+        exclude: [".git*", "*.scss", "node_modules"],
+        recursive: true
       },
       demo: {
         options: {
@@ -142,7 +143,7 @@ module.exports = function(grunt) {
       development: {
         options: {
           paths: ["src/css"],
-          cleancss: true 
+          cleancss: true
         },
         files: {
           "build/css/valiant360.css": "src/css/valiant360.less"

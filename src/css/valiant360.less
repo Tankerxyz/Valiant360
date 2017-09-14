@@ -23,6 +23,58 @@
 
 .Valiant360_default {
 	position: relative;
+
+	&:focus {
+		user-select: none;
+	}
+
+	.pointer-overlay {
+		position: absolute;
+		z-index: 2000;
+		width: 105px;
+		height: 105px;
+		top: 5px;
+		right: 5px;
+		background: url('../img/pointer.png') 50% 50%;
+		user-select: none;
+		-webkit-user-drag: none;
+	}
+
+
+	.tour-controls {
+		position: absolute;
+		display: none;
+		justify-content: center;
+		width: 100%;
+		height: 52px;
+		bottom: 55px;
+		cursor: pointer;
+		user-select: none;
+		-webkit-user-drag: none;
+		
+		&.show {
+			display: flex;
+		}
+
+		.tour-button {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 40px;
+			width: 50px;
+			height: 50px;
+			background: rgba(0, 0, 0, 0.7);
+			border: 1px solid black;
+			color: white;
+
+			&:hover {
+				background: black;
+			}
+		}
+	}
+
+
+
 	canvas {
 		width: 100%;
 		height: 100%;
@@ -30,11 +82,17 @@
 	}
 	.controlsWrapper {
 		position: absolute;
-		height: 0;
 		width: 100%;
 		bottom:0;
 		overflow:hidden;
 		.transition(all .5s ease-in-out);
+
+		&:not(.showed) {
+			height: 0;
+		}
+		&.showed {
+			height: 48px;
+		}
 	}
 	.controls {
 		overflow: hidden;
@@ -148,15 +206,6 @@
 			color: #fff;
 		}
 
-		.progress {
-			margin: -25% auto;
-			font-size: 25px;
-			width: 40px;
-			height: 32px;
-			text-align: center;
-			color: #fff;
-		}
-
 		.waiting-icon{
 			text-indent: -9999em;
 			border-radius: 50%;
@@ -188,6 +237,7 @@
 
 .Valiant360_default:hover {
 	.controlsWrapper {
+		z-index: 1000;
 		height: 48px;
 	}
 }
