@@ -12,7 +12,7 @@
 /* REQUIREMENTS:
 
 jQuery 1.7.2 or greater
-three.js r65 or higher
+three.js r87 or higher
 
 */
 
@@ -225,6 +225,25 @@ three.js r65 or higher
                   </div>';
                 $(this.element).append(loadingHTML);
                 this.showWaiting();
+
+
+
+
+
+
+                var debugHTML = `
+                <div class="debug-panel">
+                    <div class="lat"></div>
+                    <div class="lon"></div>
+                    <div class="current-position"></div>
+                    <div class="params-url"></div>
+                </div>`;
+
+                $(this.element).append(debugHTML);
+
+
+
+
 
                 // create off-dom video player
                 this._video = document.createElement('video');
@@ -525,8 +544,6 @@ three.js r65 or higher
         updateTourPosition: function (direction) {
             var currentTour = this.getCurrentTour();
 
-
-
             this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, 1000, direction);
 
             console.log('currentTour: ', currentTour);
@@ -584,6 +601,7 @@ three.js r65 or higher
             const fn = () => {
                 if (count-- <= 1) { clearInterval(this.h_interval); this.h_interval = null; }
 
+                this._lat += stepLat;
                 // todo refactor
                 if (isRight) {
                     this._lon += stepLon;
@@ -599,7 +617,6 @@ three.js r65 or higher
                     }
                 } else {
                     this._lon += stepLon;
-                    this._lat += stepLat;
                 }
 
                 // console.log(Date.now() - startDate, count, this._lat, this._lon);
@@ -928,6 +945,70 @@ three.js r65 or higher
             $(this._video).on('volumechange', this.onVolumeChange.bind(this));
         },
 
+        updateCurrentTourPos: function () {
+
+            const lat = this._lat;
+            const lon = this._lon;
+
+            const calcedTours = this.getCalcedTours();
+            let currentTour;
+
+            // TODO refactor
+            for (let i = 0; i < calcedTours.length; ++i) {
+                let tour = calcedTours[i]
+
+                if (tour.prevPos > tour.nextPos) {
+                    if (lon <= tour.nextPos && ((this.CONST.MAX_LON - tour.prevPos) >= lon)) {
+                        currentTour = { tour, i };
+                    } else if (lon >= tour.prevPos && ((this.CONST.MAX_LON - lon) < (this.CONST.MAX_LON - tour.prevPos))) {
+                        currentTour = { tour, i };
+                    }
+                } else if (lon >= tour.prevPos && lon <= tour.nextPos) {
+                    currentTour = { tour, i };
+                }
+            }
+
+            if (!currentTour) {
+                console.error(lon);
+            } else {
+                this.currentTourPos = currentTour.i;
+            }
+
+        },
+
+        getCalcedTours: function () {
+            const calcedTours = [];
+            const tours = this.tourParams.tours;
+
+            for (let i = 0; i < tours.length; ++i) {
+                const prevPos = (i === 0 ? tours[tours.length - 1] : tours[i - 1]).pos.lon;
+                const curPos = tours[i].pos.lon;
+                const nextPos = (i === tours.length - 1 ? tours[0] : tours[i + 1]).pos.lon;
+
+                const curTourPos = {
+                    pos: curPos
+                };
+
+                curTourPos.prevPos = curPos < prevPos ? (((this.CONST.MAX_LON - prevPos) / 2) + prevPos) : ((curPos - prevPos) / 2) + prevPos;
+                curTourPos.nextPos = nextPos < curPos ? (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos : ((nextPos - curPos) / 2) + curPos;
+
+                calcedTours.push(curTourPos);
+
+
+                /*
+                    get prev tour
+                    get current tour
+                    get next tour
+                    if tour last get first tour
+                    if tour first get last tour
+                    minHalf = (curTour.lon - prevTour.lon) / 2
+                    maxHalf = nextTour.lon - curTour.lon
+                */
+            }
+
+            return calcedTours;
+        },
+
         onMouseMove: function (event) {
             if (window.TouchEvent && event instanceof TouchEvent) {
                 event.preventDefault();
@@ -959,11 +1040,25 @@ three.js r65 or higher
                 if (this._mouseDown) {
                     x = event.pageX - this._dragStart.x;
                     y = event.pageY - this._dragStart.y;
-
                     this._dragStart.x = event.pageX;
                     this._dragStart.y = event.pageY;
-                    this._lon += x;
-                    this._lat -= y;
+                    let nextLon = this._lon + x;
+                    let nextLat = this._lat - y;
+
+                    const isRight = x < 0;
+                    const isLeft = x > 0;
+
+                    if (isRight && nextLon < this.CONST.MIN_LON) {
+                        nextLon = nextLon + this.CONST.MAX_LON;
+                    } else if (isLeft && nextLon > this.CONST.MAX_LON) {
+                        nextLon = nextLon - this.CONST.MAX_LON;
+                    }
+
+                    this._lon = nextLon;
+                    this._lat = nextLat;
+
+                    this.updateCurrentTourPos();
+
                 }
             } else {
                 x =
@@ -1157,15 +1252,36 @@ three.js r65 or higher
                 var offset = 3;
                 var pressDelay = 50;
                 var element = this.element;
+                let nextLon;
                 event.preventDefault();
                 switch (keyCode) {
                     //Arrow left
                     case 37:
-                        this._lon -= offset;
+
+                        nextLon = this._lon - offset;
+
+                        if (nextLon < this.CONST.MIN_LON) {
+                            nextLon = nextLon + this.CONST.MAX_LON;
+                        }
+
+                        this._lon = nextLon;
+
+                        this.updateCurrentTourPos();
+
                         break;
                     //Arrow right
                     case 39:
-                        this._lon += offset;
+
+                        nextLon = this._lon + offset;
+
+                        if (nextLon > this.CONST.MAX_LON) {
+                            nextLon = nextLon - this.CONST.MAX_LON;
+                        }
+
+                        this._lon = nextLon;
+
+                        this.updateCurrentTourPos();
+
                         break;
                     //Arrow up
                     case 38:
@@ -1271,6 +1387,17 @@ three.js r65 or higher
         },
 
         render: function () {
+
+            var debugPanel = $(this.element).find('.debug-panel');
+            debugPanel.find('.lat').text(this._lat);
+            debugPanel.find('.lon').text(this._lon);
+            debugPanel.find('.current-position').text(this.currentTourPos);
+
+            if (this.tourParams) {
+                debugPanel.find('.params-url').text(this.getCurrentTour().params);
+            }
+
+
             this._lat = Math.max(-85, Math.min(85, this._lat));
             this._phi = (90 - this._lat) * Math.PI / 180;
             this._theta = this._lon * Math.PI / 180;
