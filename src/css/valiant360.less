@@ -40,20 +40,38 @@
 		-webkit-user-drag: none;
 	}
 
+	.overlay {
+		display: block;
+		width: 100%;
+		height: 100%;
+		background: black;
+		position: absolute;
+		opacity: 0;
+		transition: opacity 1s ease-in-out;
+
+		&.show {
+			z-index: 2000;
+			opacity: 1;
+		}
+	}
 
 	.tour-controls {
 		position: absolute;
-		display: none;
+		display: flex;
 		justify-content: center;
+		visibility: hidden;
 		width: 100%;
 		height: 52px;
 		bottom: 55px;
+		opacity: 0;
+		transition: opacity .3s ease-in-out;
 		cursor: pointer;
 		user-select: none;
 		-webkit-user-drag: none;
 		
 		&.show {
-			display: flex;
+			visibility: visible;
+			opacity: 1;
 		}
 
 		.tour-button {
@@ -206,6 +224,11 @@
 		width:100%;
 		display:none;
 		overflow: hidden;
+
+		&.force-show {
+			z-index: 10000;
+		}
+
 		.icon{
 			margin: 25% auto;
 			width: 32px;

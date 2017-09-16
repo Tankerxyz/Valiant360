@@ -110,7 +110,9 @@ three.js r87 or higher
 
             this.CONST = {
                 MAX_LON: 360,
-                MIN_LON: 0
+                MIN_LON: 0,
+                STEP_DEG: 30,
+                ANIMATION_TIME: 500
             };
 
             this._lat = this.options.lat;
@@ -243,6 +245,11 @@ three.js r87 or higher
 
 
 
+                var overlayHTML = `<div class="overlay"></div>`;
+
+                $(this.element).append(overlayHTML);
+
+
 
 
                 // create off-dom video player
@@ -311,6 +318,7 @@ three.js r87 or higher
                 });
 
                 this._video.addEventListener('timeupdate', function () {
+
                     var percent = this.currentTime * 100 / this.duration;
                     $(self.element)
                         .find('.controlsWrapper > .valiant-progress-bar')[0]
@@ -329,11 +337,19 @@ three.js r87 or higher
                     var duration = durMin + ':' + (durSec < 10 ? '0' + durSec : durSec);
                     var currentTime =
                         timeMin + ':' + (timeSec < 10 ? '0' + timeSec : timeSec);
-                    $(self.element)
-                        .find('.controls .timeLabel')
-                        .html(currentTime + ' / ' + duration);
 
-                    if (percent >= 100) {
+
+                    if (isNaN(this.duration)) {
+                        $(self.element)
+                            .find('.controls .timeLabel')
+                            .html('');
+                    } else {
+                        $(self.element)
+                            .find('.controls .timeLabel')
+                            .html(currentTime + ' / ' + duration);
+                    }
+
+                    if (percent >= 99.99) {
                         self.showTour();
                     } else {
                         self.hideTour()
@@ -381,22 +397,30 @@ three.js r87 or higher
                 });
 
                 this._video.addEventListener('loadedmetadata', function () {
-                    self.hideWaiting();
+                    // self.hideWaiting();
                 });
 
                 if (self.options.usePreview && self.options.useBuffering) {
                     this._video.onloadeddata = function () {
                         self._video.onseeked = function () {
                             if (self._video.seekable.end(0) >= self._video.duration - 0.1) {
+                                self.hideOverlay();
                                 self.hideWaiting();
                                 self._videoLoading = false;
                                 self._videoReady = true;
+
+                                if (self.isTour) {
+                                    self._lat = self.tourParams.lat;
+                                    self._lon = self.tourParams.lon;
+                                }
 
                                 if (self.autoplay) {
                                     self.play();
                                 }
 
                             } else {
+                                console.log('lil', self._video.buffered.end(0));
+
                                 self._video.currentTime = self._video.buffered.end(0); // Seek ahead to force more buffering
                             }
                         };
@@ -435,9 +459,11 @@ three.js r87 or higher
                     - handle buttons
                 */
 
-                $(this.element).find('.tour-controls').addClass('show');
-
-                this.setEasyPosition(this.tourParams.lat, this.tourParams.lon, 500);
+                this.setEasyPosition(this.tourParams.lat, this.tourParams.lon, this.CONST.ANIMATION_TIME);
+                setTimeout(() => {
+                    $(this.element).find('.tour-controls').addClass('show');
+                    this.updateCurrentTourPos();
+                }, this.CONST.ANIMATION_TIME);
 
                 this.tourStarted = true;
             }
@@ -499,7 +525,14 @@ three.js r87 or higher
             event.stopPropagation();
 
             var tours = this.tourParams.tours;
-            --this.currentTourPos;
+            var tour = tours[this.currentTourPos];
+            var lon = this._lon;
+
+            if (lon > tour.pos.lon && lon - tour.pos.lon <= this.CONST.STEP_DEG
+                || lon <= tour.pos.lon
+                || lon > tour.pos.lon && this.CONST.MAX_LON - lon <= this.CONST.STEP_DEG) {
+                --this.currentTourPos;
+            }
 
             if (this.currentTourPos < 0) {
                 this.currentTourPos = tours.length - 1;
@@ -513,11 +546,22 @@ three.js r87 or higher
 
             var currentTour = this.getCurrentTour();
 
-            this.hideTour();
+            this.showOverlay();
+            this._videoLoading = true;
+            setTimeout(() => {
+                if (this._videoLoading) {
+                    $(this.element).find('.loading').addClass('force-show');
+                    this.showWaiting();
+                }
+            }, 1000);
+
             this.autoplay = true;
             this.tourParamsUrl = currentTour.params;
-            this.setTourParams(currentTour.params);
-            this._video.src = currentTour.url;
+            this.setTourParams(currentTour.params).then(() => {
+                setTimeout(() => {
+                    this._video.src = currentTour.url;
+                }, 100);
+            });
 
             /*
                 + load new video
@@ -532,7 +576,13 @@ three.js r87 or higher
             event.stopPropagation();
 
             var tours = this.tourParams.tours;
-            ++this.currentTourPos;
+            var tour = tours[this.currentTourPos];
+            var lon = this._lon;
+
+            if (lon < tour.pos.lon && tour.pos.lon - lon <= 30
+                || lon >= tour.pos.lon) {
+                ++this.currentTourPos;
+            }
 
             if (this.currentTourPos > tours.length - 1) {
                 this.currentTourPos = 0;
@@ -541,10 +591,18 @@ three.js r87 or higher
             this.updateTourPosition('right');
         },
 
+        showOverlay: function () {
+            $(this.element).find('.overlay').addClass('show');
+        },
+
+        hideOverlay: function () {
+            $(this.element).find('.overlay').removeClass('show');
+        },
+
         updateTourPosition: function (direction) {
             var currentTour = this.getCurrentTour();
 
-            this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, 1000, direction);
+            this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, this.CONST.ANIMATION_TIME, direction);
 
             console.log('currentTour: ', currentTour);
         },
@@ -559,8 +617,6 @@ three.js r87 or higher
                 .then((json) => {
                     this.tourParams = json;
                     this.currentTourPos = 0;
-                    this._lat = json.lat;
-                    this._lon = json.lon;
 
                     console.log('currentLoadedParams: ', json, url);
                 });
@@ -958,7 +1014,7 @@ three.js r87 or higher
                 let tour = calcedTours[i]
 
                 if (tour.prevPos > tour.nextPos) {
-                    if (lon <= tour.nextPos && ((this.CONST.MAX_LON - tour.prevPos) >= lon)) {
+                    if (lon <= tour.nextPos && ((((this.CONST.MAX_LON + lon) - this.CONST.MAX_LON) >= (this.CONST.MAX_LON - tour.prevPos)) || ((this.CONST.MAX_LON - tour.prevPos) >= lon))) {
                         currentTour = { tour, i };
                     } else if (lon >= tour.prevPos && ((this.CONST.MAX_LON - lon) < (this.CONST.MAX_LON - tour.prevPos))) {
                         currentTour = { tour, i };
@@ -991,6 +1047,41 @@ three.js r87 or higher
 
                 curTourPos.prevPos = curPos < prevPos ? (((this.CONST.MAX_LON - prevPos) / 2) + prevPos) : ((curPos - prevPos) / 2) + prevPos;
                 curTourPos.nextPos = nextPos < curPos ? (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos : ((nextPos - curPos) / 2) + curPos;
+
+                if (nextPos < curPos) {
+                    // var a = (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos;
+                    var a = (((this.CONST.MAX_LON - curPos) + nextPos) / 2) + curPos
+
+                    if (a >= 360) {
+                        a -= 360;
+                    }
+                } else {
+                    var a = ((nextPos - curPos) / 2) + curPos;
+                }
+
+                if (curPos < prevPos) {
+                    var b = (((this.CONST.MAX_LON - prevPos) + curPos) / 2) + prevPos;
+
+                    if (b >= 360) {
+                        b -= 360;
+                    }
+                } else {
+                    var b = ((curPos - prevPos) / 2) + prevPos;
+                }
+
+                curTourPos.prevPos = b;
+                curTourPos.nextPos = a;
+
+                if (a === 360) {
+                    // debugger;
+                }
+
+                // curTourPos.nextPos = 
+                // ? (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos // (((360 + 270) - 90) / 2) + 90
+                // // ? (((this.CONST.MAX_LON - curPos) / 2) + nextPos)
+                // : ((nextPos - curPos) / 2) + curPos;
+
+
 
                 calcedTours.push(curTourPos);
 
@@ -1490,9 +1581,9 @@ three.js r87 or higher
         },
 
         hideWaiting: function () {
-            $(this.element)
-                .find('.loading')
-                .hide();
+            var loading = $(this.element).find('.loading');
+            loading.removeClass('force-show');
+            loading.hide();
         },
 
         showError: function () {
