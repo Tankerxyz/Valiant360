@@ -103,17 +103,24 @@ three.js r87 or higher
             this._mouseDown = false;
             this.firstTimeHovered = false;
             this._dragStart = {};
-            this.tourParamsUrl = $(this.element).attr('data-tour-params');
-            this.isTour = !!this.tourParamsUrl;
+
+            this.isTour = /.json$/i.test($(this.element).attr('data-video-src'));
+            this.tourParamsUrl = $(this.element).attr('data-video-src');
             this.tourParams = null;
             this.tourStarted = false;
+            this.toursStack = [];
 
             this.CONST = {
                 MAX_LON: 360,
                 MIN_LON: 0,
                 STEP_DEG: 30,
-                ANIMATION_TIME: 500
+                ANIMATION_TIME: 500,
+                MAX_PLAYBACK_RATE: 8,
+                MIN_PLAYBACK_RATE: 1,
+                PLAYBACK_STEP: 1
             };
+
+            this.playbackRate = this.CONST.MIN_PLAYBACK_RATE;
 
             this._lat = this.options.lat;
             this._lon = this.options.lon;
@@ -187,23 +194,6 @@ three.js r87 or higher
             // append the rendering element to this div
             $(this.element).append(this._renderer.domElement);
 
-            var createAnimation = function () {
-                self._texture.generateMipmaps = false;
-                self._texture.minFilter = THREE.LinearFilter;
-                self._texture.magFilter = THREE.LinearFilter;
-                self._texture.format = THREE.RGBFormat;
-
-                // create ThreeJS mesh sphere onto which our texture will be drawn
-                self._mesh = new THREE.Mesh(
-                    new THREE.SphereGeometry(500, 80, 50),
-                    new THREE.MeshBasicMaterial({ map: self._texture })
-                );
-                self._mesh.scale.x = -1; // mirror the texture, since we're looking from the inside out
-                self._scene.add(self._mesh);
-
-                self.animate();
-            };
-
             this.src = $(this.element).attr('data-video-src');
 
             this.isImage = /(\.jpg|\.png|\.gif|.bmp|.jpeg)$/i.test(this.src);
@@ -213,44 +203,15 @@ three.js r87 or higher
                 this._texture = new THREE.TextureLoader().load(
                     this.src
                 );
-                createAnimation();
+                this.createAnimation();
             } else {
                 this._isVideo = true;
 
-                window.v = this;
-
-                // create loading overlay
-                var loadingHTML =
-                    '<div class="loading"> \
-                    <div class="icon waiting-icon"></div> \
-                    <div class="icon error-icon"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i></div> \
-                  </div>';
-                $(this.element).append(loadingHTML);
+                this.createLoadingOverlay();
                 this.showWaiting();
 
-
-
-
-
-
-                var debugHTML = `
-                <div class="debug-panel">
-                    <div class="lat"></div>
-                    <div class="lon"></div>
-                    <div class="current-position"></div>
-                    <div class="params-url"></div>
-                </div>`;
-
-                $(this.element).append(debugHTML);
-
-
-
-                var overlayHTML = `<div class="overlay"></div>`;
-
-                $(this.element).append(overlayHTML);
-
-
-
+                // this.createDebugOverlay();
+                this.createCurrentPositionOverlay();
 
                 // create off-dom video player
                 this._video = document.createElement('video');
@@ -260,208 +221,403 @@ three.js r87 or higher
                 $(this.element).append(this._video);
                 this._video.setAttribute("playsinline", "");
                 this._video.setAttribute("webkit-playsinline", "");
-
-                this._video.loop = this.isTour ? false : this.options.loop;
                 this._video.volume = this.options.volume;
                 this._video.muted = this.options.muted;
 
-                // attach video player event listeners
-                this._video.addEventListener('ended', function () { });
-
-                console.log(this.isTour, this.tourParamsUrl);
-
                 if (this.isTour) {
+                    window.v = this;
+
                     this.createTourControls();
-                    this.setTourParams(this.tourParamsUrl);
-                }
-
-                // Progress Meter
-                this._video.addEventListener('progress', function () {
-                    var percent = null;
-                    if (
-                        self._video &&
-                        self._video.buffered &&
-                        self._video.buffered.length > 0 &&
-                        self._video.buffered.end &&
-                        self._video.duration
-                    ) {
-                        percent = self._video.buffered.end(0) / self._video.duration;
-                    } else if (
-                        self._video &&
-                        self._video.bytesTotal !== undefined &&
-                        self._video.bytesTotal > 0 &&
-                        self._video.bufferedBytes !== undefined
-                    ) {
-                        // Some browsers (e.g., FF3.6 and Safari 5) cannot calculate target.bufferered.end()
-                        // to be anything other than 0. If the byte count is available we use this instead.
-                        // Browsers that support the else if do not seem to have the bufferedBytes value and
-                        // should skip to there. Tested in Safari 5, Webkit head, FF3.6, Chrome 6, IE 7/8.
-                        percent = self._video.bufferedBytes / self._video.bytesTotal;
-                    }
-
-                    // Someday we can have a loading animation for videos
-                    var cpct = Math.round(percent * 100);
-                    if (cpct === 100) {
-                        // do something now that we are done
-                    } else {
-                        // do something with this percentage info (cpct)
-                    }
-
-                });
-                // Error listener
-                this._video.addEventListener('error', function (event) {
-                    console.error(self._video.error);
-
-                    $('html').append('\nError: ', self._video.error);
-                    self.showError();
-
-                });
-
-                this._video.addEventListener('timeupdate', function () {
-
-                    var percent = this.currentTime * 100 / this.duration;
-                    $(self.element)
-                        .find('.controlsWrapper > .valiant-progress-bar')[0]
-                        .children[0].setAttribute('style', 'width:' + percent + '%;');
-                    $(self.element)
-                        .find('.controlsWrapper > .valiant-progress-bar')[0]
-                        .children[1].setAttribute(
-                        'style',
-                        'width:' + (100 - percent) + '%;'
-                        );
-                    //Update time label
-                    var durMin = Math.floor(this.duration / 60);
-                    var durSec = Math.floor(this.duration - durMin * 60);
-                    var timeMin = Math.floor(this.currentTime / 60);
-                    var timeSec = Math.floor(this.currentTime - timeMin * 60);
-                    var duration = durMin + ':' + (durSec < 10 ? '0' + durSec : durSec);
-                    var currentTime =
-                        timeMin + ':' + (timeSec < 10 ? '0' + timeSec : timeSec);
-
-
-                    if (isNaN(this.duration)) {
-                        $(self.element)
-                            .find('.controls .timeLabel')
-                            .html('');
-                    } else {
-                        $(self.element)
-                            .find('.controls .timeLabel')
-                            .html(currentTime + ' / ' + duration);
-                    }
-
-                    if (percent >= 99.99) {
-                        self.showTour();
-                    } else {
-                        self.hideTour()
-                    }
-
-                    if (this.paused === true) {
-                        self.pause();
-                    }
-                });
-
-                // IE 11 and previous not supports THREE.Texture([video]), we must create a canvas that draws the video and use that to create the Texture
-                var isIE =
-                    navigator.appName == 'Microsoft Internet Explorer' ||
-                    !!(
-                        navigator.userAgent.match(/Trident/) ||
-                        navigator.userAgent.match(/rv 11/)
-                    );
-                if (isIE) {
-                    this._videocanvas = document.createElement('canvas');
-                    this._texture = new THREE.Texture(this._videocanvas);
-                    // set canvas size = video size when known
-                    this._video.addEventListener('loadedmetadata', function () {
-                        self._videocanvas.width = self._video.videoWidth;
-                        self._videocanvas.height = self._video.videoHeight;
-                        createAnimation();
+                    this.setTourParams(this.tourParamsUrl).then(() => {
+                        this.createTourVideo();
                     });
                 } else {
-                    try {
-                        this._texture = new THREE.VideoTexture(this._video);
-                    } catch (err) {
-                        $(this.element).text(err);
-                    }
+                    this.createNormalVideo();
                 }
 
-                var isWaiting = false;
-
-                this._video.addEventListener('waiting', function () {
-                    self.showWaiting();
-                    isWaiting = true;
-                });
-
-                this._video.addEventListener('playing', function () {
-                    self.hideWaiting();
-                    isWaiting = false;
-                });
-
-                this._video.addEventListener('loadedmetadata', function () {
-                    // self.hideWaiting();
-                });
-
-                if (self.options.usePreview && self.options.useBuffering) {
-                    this._video.onloadeddata = function () {
-                        self._video.onseeked = function () {
-                            if (self._video.seekable.end(0) >= self._video.duration - 0.1) {
-                                self.hideOverlay();
-                                self.hideWaiting();
-                                self._videoLoading = false;
-                                self._videoReady = true;
-
-                                if (self.isTour) {
-                                    self._lat = self.tourParams.lat;
-                                    self._lon = self.tourParams.lon;
-                                }
-
-                                if (self.autoplay) {
-                                    self.play();
-                                }
-
-                            } else {
-                                console.log('lil', self._video.buffered.end(0));
-
-                                self._video.currentTime = self._video.buffered.end(0); // Seek ahead to force more buffering
-                            }
-                        };
-
-                        self._video.currentTime = 0; // first seek to trigger the event
-                    };
-
-                    self._video.onseeking = function () {
-                        self.showWaiting();
-                    };
-                    this._video.preload = 'auto';
-                    this._video.src = this.src;
-                }
-
-                if (this.options.autoplay) {
-                    this.play();
-                }
-
-                if (!isIE) {
-                    createAnimation();
-                }
             }
         },
 
-        makeScreenBlack() {
+        createTourVideo: function () {
+            var self = this;
 
+            this._video.loop = false;
+
+            // Progress Meter
+            this._video.addEventListener('progress', function () {
+                var percent = null;
+                if (
+                    self._video &&
+                    self._video.buffered &&
+                    self._video.buffered.length > 0 &&
+                    self._video.buffered.end &&
+                    self._video.duration
+                ) {
+                    percent = self._video.buffered.end(0) / self._video.duration;
+                } else if (
+                    self._video &&
+                    self._video.bytesTotal !== undefined &&
+                    self._video.bytesTotal > 0 &&
+                    self._video.bufferedBytes !== undefined
+                ) {
+                    // Some browsers (e.g., FF3.6 and Safari 5) cannot calculate target.bufferered.end()
+                    // to be anything other than 0. If the byte count is available we use this instead.
+                    // Browsers that support the else if do not seem to have the bufferedBytes value and
+                    // should skip to there. Tested in Safari 5, Webkit head, FF3.6, Chrome 6, IE 7/8.
+                    percent = self._video.bufferedBytes / self._video.bytesTotal;
+                }
+
+                // Someday we can have a loading animation for videos
+                var cpct = Math.round(percent * 100);
+                if (cpct === 100) {
+                    // do something now that we are done
+                } else {
+                    // do something with this percentage info (cpct)
+                }
+
+            });
+            // Error listener
+            this._video.addEventListener('error', function (event) {
+                console.error(self._video.error);
+            });
+
+            this._video.addEventListener('timeupdate', function () {
+
+                var percent = this.currentTime * 100 / this.duration;
+                $(self.element)
+                    .find('.controlsWrapper > .valiant-progress-bar')[0]
+                    .children[0].setAttribute('style', 'width:' + percent + '%;');
+                $(self.element)
+                    .find('.controlsWrapper > .valiant-progress-bar')[0]
+                    .children[1].setAttribute(
+                    'style',
+                    'width:' + (100 - percent) + '%;'
+                    );
+                //Update time label
+                var durMin = Math.floor(this.duration / 60);
+                var durSec = Math.floor(this.duration - durMin * 60);
+                var timeMin = Math.floor(this.currentTime / 60);
+                var timeSec = Math.floor(this.currentTime - timeMin * 60);
+                var duration = durMin + ':' + (durSec < 10 ? '0' + durSec : durSec);
+                var currentTime =
+                    timeMin + ':' + (timeSec < 10 ? '0' + timeSec : timeSec);
+
+
+                if (isNaN(this.duration)) {
+                    $(self.element)
+                        .find('.controls .timeLabel')
+                        .html('');
+                } else {
+                    $(self.element)
+                        .find('.controls .timeLabel')
+                        .html(currentTime + ' / ' + duration);
+                }
+
+                if (percent >= 99.99) {
+                    self.showTour();
+                } else {
+                    self.hideTour()
+                }
+
+                if (this.paused === true) {
+                    self.pause();
+                }
+            });
+
+            // IE 11 and previous not supports THREE.Texture([video]), we must create a canvas that draws the video and use that to create the Texture
+            var isIE =
+                navigator.appName == 'Microsoft Internet Explorer' ||
+                !!(
+                    navigator.userAgent.match(/Trident/) ||
+                    navigator.userAgent.match(/rv 11/)
+                );
+            if (isIE) {
+                this._videocanvas = document.createElement('canvas');
+                this._texture = new THREE.Texture(this._videocanvas);
+                // set canvas size = video size when known
+                this._video.addEventListener('loadedmetadata', function () {
+                    self._videocanvas.width = self._video.videoWidth;
+                    self._videocanvas.height = self._video.videoHeight;
+                    self.createAnimation();
+                });
+            } else {
+                this._texture = new THREE.VideoTexture(this._video);
+            }
+
+            var isWaiting = false;
+
+            this._video.addEventListener('waiting', function () {
+                self.showWaiting();
+                isWaiting = true;
+            });
+
+            this._video.addEventListener('playing', function () {
+                self.hideWaiting();
+                isWaiting = false;
+            });
+
+            this._video.onloadeddata = function () {
+                self._video.onseeked = function () {
+                    if (self._video.seekable.end(0) >= self._video.duration - 0.1) {
+                        self.hideOverlay();
+                        self.hideWaiting();
+                        self._videoLoading = false;
+                        self._videoReady = true;
+
+                        if (self.isTour) {
+                            self._lat = self.tourParams.lat;
+                            self._lon = self.tourParams.lon;
+                        }
+
+                        if (self.autoplay) {
+                            self.play();
+                        }
+
+                        if (self.isFastRewind) {
+                            self.isFastRewind = false;
+                            self.currentTourPos = self.tourParams.tours.length - 1;
+                            self._video.currentTime = self._video.duration;
+                        }
+
+                    } else {
+                        self._video.currentTime = self._video.buffered.end(0); // Seek ahead to force more buffering
+                    }
+                };
+
+                self._video.currentTime = 0; // first seek to trigger the event
+            };
+
+            this._video.onseeking = function () {
+                self.showWaiting();
+            };
+            this._video.preload = 'auto';
+            this.loadVideo();
+
+
+            if (this.options.autoplay) {
+                this.play();
+            }
+
+            if (!isIE) {
+                this.createAnimation();
+            }
+        },
+
+        createNormalVideo: function () {
+            var self = this;
+
+            this._video.loop = this.options.loop;
+
+            // Progress Meter
+            this._video.addEventListener('progress', function () {
+                var percent = null;
+                if (
+                    self._video &&
+                    self._video.buffered &&
+                    self._video.buffered.length > 0 &&
+                    self._video.buffered.end &&
+                    self._video.duration
+                ) {
+                    percent = self._video.buffered.end(0) / self._video.duration;
+                } else if (
+                    self._video &&
+                    self._video.bytesTotal !== undefined &&
+                    self._video.bytesTotal > 0 &&
+                    self._video.bufferedBytes !== undefined
+                ) {
+                    // Some browsers (e.g., FF3.6 and Safari 5) cannot calculate target.bufferered.end()
+                    // to be anything other than 0. If the byte count is available we use this instead.
+                    // Browsers that support the else if do not seem to have the bufferedBytes value and
+                    // should skip to there. Tested in Safari 5, Webkit head, FF3.6, Chrome 6, IE 7/8.
+                    percent = self._video.bufferedBytes / self._video.bytesTotal;
+                }
+
+                // Someday we can have a loading animation for videos
+                var cpct = Math.round(percent * 100);
+                if (cpct === 100) {
+                    // do something now that we are done
+                } else {
+                    // do something with this percentage info (cpct)
+                }
+
+            });
+            // Error listener
+            this._video.addEventListener('error', function (event) {
+                console.error(self._video.error);
+            });
+
+            this._video.addEventListener('timeupdate', function () {
+
+                var percent = this.currentTime * 100 / this.duration;
+                $(self.element)
+                    .find('.controlsWrapper > .valiant-progress-bar')[0]
+                    .children[0].setAttribute('style', 'width:' + percent + '%;');
+                $(self.element)
+                    .find('.controlsWrapper > .valiant-progress-bar')[0]
+                    .children[1].setAttribute(
+                    'style',
+                    'width:' + (100 - percent) + '%;'
+                    );
+                //Update time label
+                var durMin = Math.floor(this.duration / 60);
+                var durSec = Math.floor(this.duration - durMin * 60);
+                var timeMin = Math.floor(this.currentTime / 60);
+                var timeSec = Math.floor(this.currentTime - timeMin * 60);
+                var duration = durMin + ':' + (durSec < 10 ? '0' + durSec : durSec);
+                var currentTime =
+                    timeMin + ':' + (timeSec < 10 ? '0' + timeSec : timeSec);
+
+
+                if (isNaN(this.duration)) {
+                    $(self.element)
+                        .find('.controls .timeLabel')
+                        .html('');
+                } else {
+                    $(self.element)
+                        .find('.controls .timeLabel')
+                        .html(currentTime + ' / ' + duration);
+                }
+
+                if (this.paused === true) {
+                    self.pause();
+                }
+            });
+
+            // IE 11 and previous not supports THREE.Texture([video]), we must create a canvas that draws the video and use that to create the Texture
+            var isIE =
+                navigator.appName == 'Microsoft Internet Explorer' ||
+                !!(
+                    navigator.userAgent.match(/Trident/) ||
+                    navigator.userAgent.match(/rv 11/)
+                );
+            if (isIE) {
+                this._videocanvas = document.createElement('canvas');
+                this._texture = new THREE.Texture(this._videocanvas);
+                // set canvas size = video size when known
+                this._video.addEventListener('loadedmetadata', function () {
+                    self._videocanvas.width = self._video.videoWidth;
+                    self._videocanvas.height = self._video.videoHeight;
+                    self.createAnimation();
+                });
+            } else {
+                this._texture = new THREE.VideoTexture(this._video);
+            }
+
+            var isWaiting = false;
+
+            this._video.addEventListener('waiting', function () {
+                self.showWaiting();
+                isWaiting = true;
+            });
+
+            this._video.addEventListener('playing', function () {
+                self.hideWaiting();
+                isWaiting = false;
+            });
+
+            if (self.options.usePreview && self.options.useBuffering) {
+                this._video.onloadeddata = function () {
+                    self._video.onseeked = function () {
+                        if (self._video.seekable.end(0) >= self._video.duration - 0.1) {
+                            self.hideWaiting();
+                            self._videoLoading = false;
+                            self._videoReady = true;
+
+                            if (self.autoplay) {
+                                self.play();
+                            }
+
+                        } else {
+                            self._video.currentTime = self._video.buffered.end(0); // Seek ahead to force more buffering
+                        }
+                    };
+
+                    self._video.currentTime = 0; // first seek to trigger the event
+                };
+
+                this._video.onseeking = function () {
+                    self.showWaiting();
+                };
+                this._video.preload = 'auto';
+                this.loadVideo();
+            }
+
+            if (this.options.autoplay) {
+                this.play();
+            }
+
+            if (!isIE) {
+                this.createAnimation();
+            }
+        },
+
+        createAnimation: function () {
+            this._texture.generateMipmaps = false;
+            this._texture.minFilter = THREE.LinearFilter;
+            this._texture.magFilter = THREE.LinearFilter;
+            this._texture.format = THREE.RGBFormat;
+
+            // create ThreeJS mesh sphere onto which our texture will be drawn
+            this._mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(500, 80, 50),
+                new THREE.MeshBasicMaterial({ map: this._texture })
+            );
+            this._mesh.scale.x = -1; // mirror the texture, since we're looking from the inside out
+            this._scene.add(this._mesh);
+
+            this.animate();
+        },
+
+        createDebugOverlay: function () {
+            var debugHTML = `
+            <div class="debug-panel">
+                <div class="lat"></div>
+                <div class="lon"></div>
+                <div class="current-position"></div>
+                <div class="params-url"></div>
+            </div>`;
+
+            $(this.element).append(debugHTML);
+        },
+
+        createLoadingOverlay: function () {
+            var loadingHTML =
+                '<div class="loading"> \
+                <div class="icon waiting-icon"></div> \
+                <div class="icon error-icon"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i></div> \
+            </div>';
+            $(this.element).append(loadingHTML);
+        },
+
+        createCurrentPositionOverlay: function () {
+            var overlay = $(`<div class="overlay"></div>`);
+            $(this.element).append(overlay);
+            this.overlayEl = overlay;
+            this.recalculateOverlayPosition();
+        },
+
+        recalculateOverlayPosition: function () {
+            var parentHeight = $(this.element).height();
+            var parentWidth = $(this.element).width();
+            console.log(this.overlayEl)
+            var width = this.overlayEl.width();
+            var height = this.overlayEl.height();
+
+            var nextTop = -((height - parentHeight) / 2);
+            var nextLeft = -((width - parentWidth) / 2);
+            this.overlayEl.css({ top: nextTop + 'px', left: nextLeft + 'px' });
         },
 
         showTour: function () {
             if (!this.tourStarted) {
                 console.log('showTour');
 
-                /*
-                    + show gui
-                    - reset position
-                    - handle buttons
-                */
+                // set last tour index;
+                this.currentTourPos = this.tourParams.tours.length - 1
+                this.updateTourPosition()
 
-                this.setEasyPosition(this.tourParams.lat, this.tourParams.lon, this.CONST.ANIMATION_TIME);
                 setTimeout(() => {
-                    $(this.element).find('.tour-controls').addClass('show');
+                    $(this.element).find('.tour-controls').addClass('showing');
                     this.updateCurrentTourPos();
                 }, this.CONST.ANIMATION_TIME);
 
@@ -473,13 +629,7 @@ three.js r87 or higher
             if (this.tourStarted) {
                 console.log('hideTour', this.tourStarted);
 
-
-                /*
-                    + hide gui
-                    - reset position
-                */
-
-                $(this.element).find('.tour-controls').removeClass('show');
+                $(this.element).find('.tour-controls').removeClass('showing');
 
                 this.tourStarted = false;
             }
@@ -488,15 +638,9 @@ three.js r87 or higher
         createTourControls: function () {
             var tourControlsHTML = `
             <div class="tour-controls">
-                <div class="tour-button left-button">
-                    <i class="fa fa-chevron-left"></i>
-                </div>
-                <div class="tour-button up-button">
-                    <i class="fa fa-chevron-up"></i>
-                </div>
-                <div class="tour-button right-button">
-                    <i class="fa fa-chevron-right"></i>
-                </div>
+                <div class="tour-button left-button"></div>
+                <div class="tour-button up-button"></div>
+                <div class="tour-button right-button"></div>
             </div>`;
 
             $(this.element).append(tourControlsHTML, true);
@@ -545,31 +689,19 @@ three.js r87 or higher
             event.stopPropagation();
 
             var currentTour = this.getCurrentTour();
-
+            this.hideTour();
             this.showOverlay();
             this._videoLoading = true;
-            setTimeout(() => {
-                if (this._videoLoading) {
-                    $(this.element).find('.loading').addClass('force-show');
-                    this.showWaiting();
-                }
-            }, 1000);
+
+            this.toursStack.push(this.tourParams);
 
             this.autoplay = true;
             this.tourParamsUrl = currentTour.params;
             this.setTourParams(currentTour.params).then(() => {
                 setTimeout(() => {
-                    this._video.src = currentTour.url;
+                    this.loadVideo();
                 }, 100);
             });
-
-            /*
-                + load new video
-                + update tour params
-                + set new position
-                + hide tour-controls
-                + play video
-            */
         },
 
         onTourRightClick: function (event) {
@@ -616,6 +748,7 @@ three.js r87 or higher
                 .then((res) => res.json())
                 .then((json) => {
                     this.tourParams = json;
+                    this.src = json.url;
                     this.currentTourPos = 0;
 
                     console.log('currentLoadedParams: ', json, url);
@@ -703,41 +836,53 @@ three.js r87 or higher
             var playPauseControl = this.options.autoplay ? 'fa-pause' : 'fa-play';
             var displayStyle = this.isImage ? 'style="display: none"' : '';
 
+            var tourMuteControl = this.options.muted ? 'mute' : 'unmute';
+            var tourPlayPauseControl = this.options.autoplay ? 'pause' : 'play';
+
             var controlsHTML =
-                ' \
-              <div class="controlsWrapper showed">\
-                <div class="valiant-progress-bar" '+ displayStyle + '>\
-                    <div style="width: 0;"></div><div style="width: 100%;"></div>\
-                </div>\
-                <div class="controls"> \
-                    <a href="#" class="playButton button fa ' +
-                playPauseControl +
-                '" ' + displayStyle + '></a> \
-          <div class="audioControl" '+ displayStyle + '>\
-            <a href="#" class="muteButton button fa ' +
-                muteControl +
-                '"></a> \
-            <div class="volumeControl" '+ displayStyle + '>\
-              <div class="volumeBar">\
-                <div class="volumeProgress"></div>\
-                <div class="volumeCursor"></div>\
-              </div>\
-            </div>\
-          </div>\
-          <span class="timeLabel"></span> \
-                    <a href="#" class="fullscreenButton button fa fa-expand"></a> \
-                </div> \
-              </div>\
-            ';
+                `
+                <div class="controlsWrapper showed">
+                    <div class="valiant-progress-bar" ${displayStyle}>
+                    <div style="width: 0;"></div><div style="width: 100%;"></div>
+                </div>
+                <div class="controls">
+                    <a href="#" class="playButton button fa ${playPauseControl}" ${displayStyle}></a>
+                    <div class="audioControl" ${displayStyle}>
+                        <a href="#" class="muteButton button fa ${muteControl}"></a>
+                    <div class="volumeControl" ${displayStyle}>
+                    <div class="volumeBar">
+                        <div class="volumeProgress"></div>
+                        <div class="volumeCursor"></div>
+                    </div>
+                    </div>
+                </div>
+                <span class="timeLabel"></span>
+                    <a href="#" class="fullscreenButton button fa fa-expand"></a>
+                </div>
+              </div>`;
+
+            var tourControlsHTML = `
+            <div class="tour-controls-wrapper">
+                <div class="playback-control ${tourPlayPauseControl}"></div>
+                <div class="speed-down"></div>
+                <div class="speed-up"></div>
+                <div class="fast-forward"></div>
+                <div class="fast-rewind"></div>
+                <div class="volume-control ${tourMuteControl}"></div>
+            </div>`;
 
             $(this.element).append(controlsHTML, true);
             $(this.element).append('<div class="timeTooltip">00:00</div>', true);
 
             // hide controls if option is set
-            if (this.options.hideControls) {
+            if (this.options.hideControls || this.isTour) {
                 $(this.element)
-                    .find('.controls')
+                    .find('.controlsWrapper')
                     .hide();
+            }
+
+            if (this.isTour) {
+                $(this.element).append(tourControlsHTML, true);
             }
 
             // wire up controller events to dom elements
@@ -849,7 +994,7 @@ three.js r87 or higher
             if (!this.isImage) {
                 this.element.addEventListener(
                     'dblclick',
-                    (event) => !self.tourStarted && self.restartVideo(event),
+                    this.onDblclick.bind(this),
                     false
                 );
             }
@@ -878,12 +1023,7 @@ three.js r87 or higher
 
             if (window.DeviceMotionEvent) {
                 // Listen for the event and handle DeviceOrientationEvent object
-                if (
-                    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-                        navigator.userAgent
-                    )
-                ) {
-                } else {
+                if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
                     this.element.addEventListener(
                         'mousemove',
                         this.onMouseMove.bind(this),
@@ -901,6 +1041,7 @@ three.js r87 or higher
             $(self.element)
                 .find('.controlsWrapper > .valiant-progress-bar')[0]
                 .addEventListener('click', this.onProgressClick.bind(this), false);
+
             $(self.element)
                 .find('.controlsWrapper > .valiant-progress-bar')[0]
                 .addEventListener(
@@ -923,6 +1064,9 @@ three.js r87 or higher
 
             $(window).resize(function () {
                 self.resizeGL($(self.element).width(), $(self.element).height());
+                setTimeout(() => {
+                    self.recalculateOverlayPosition();
+                })
             });
 
             // Player Controls
@@ -942,6 +1086,92 @@ three.js r87 or higher
                         self.play();
                     }
                 });
+
+            $(this.element)
+                .find('.muteButton')
+                .click(function (e) {
+                    e.preventDefault();
+                    if ($(this).hasClass('fa-volume-off')) {
+                        $(this)
+                            .removeClass('fa-volume-off')
+                            .addClass('fa-volume-up');
+                        self._video.muted = false;
+                    } else {
+                        $(this)
+                            .removeClass('fa-volume-up')
+                            .addClass('fa-volume-off');
+                        self._video.muted = true;
+                    }
+                });
+
+            if (this.isTour) {
+
+                $(this.element)
+                    .find('.tour-controls-wrapper .playback-control')
+                    .click(function (e) {
+                        e.preventDefault();
+                        if ($(this).hasClass('pause')) {
+                            $(this)
+                                .removeClass('pause')
+                                .addClass('play');
+                            self.pause();
+                        } else {
+                            $(this)
+                                .removeClass('play')
+                                .addClass('pause');
+                            self.play();
+                        }
+                    });
+
+                $(this.element)
+                    .find('.tour-controls-wrapper .volume-control')
+                    .click(function (e) {
+                        e.preventDefault();
+                        if ($(this).hasClass('mute')) {
+                            $(this)
+                                .removeClass('mute')
+                                .addClass('unmute');
+                            self._video.muted = false;
+                        } else {
+                            $(this)
+                                .removeClass('unmute')
+                                .addClass('mute');
+                            self._video.muted = true;
+                        }
+                    });
+
+
+                // tour speed controls
+                $(this.element)
+                    .find('.tour-controls-wrapper .speed-up')
+                    .click((e) => {
+                        e.preventDefault();
+                        this.onPlaybackRateUp();
+                    });
+
+                $(this.element)
+                    .find('.tour-controls-wrapper .speed-down')
+                    .click((e) => {
+                        e.preventDefault();
+                        this.onPlaybackRateDown();
+                    });
+
+
+                // tour fast nav
+                $(this.element)
+                    .find('.tour-controls-wrapper .fast-forward')
+                    .click((e) => {
+                        e.preventDefault();
+                        this.tourFastForward();
+                    });
+
+                $(this.element)
+                    .find('.tour-controls-wrapper .fast-rewind')
+                    .click((e) => {
+                        e.preventDefault();
+                        this.tourRewind();
+                    });
+            }
 
             $(this.element)
                 .find('.fullscreenButton')
@@ -969,27 +1199,11 @@ three.js r87 or higher
                             document.webkitExitFullscreen();
                         }
 
-                        console.log('exit from fullscreen');
-                        // $(window).trigger('resize');
+                        $(window).trigger('resize');
                     }
                 });
 
-            $(this.element)
-                .find('.muteButton')
-                .click(function (e) {
-                    e.preventDefault();
-                    if ($(this).hasClass('fa-volume-off')) {
-                        $(this)
-                            .removeClass('fa-volume-off')
-                            .addClass('fa-volume-up');
-                        self._video.muted = false;
-                    } else {
-                        $(this)
-                            .removeClass('fa-volume-up')
-                            .addClass('fa-volume-off');
-                        self._video.muted = true;
-                    }
-                });
+
 
             $(this.element)
                 .find('.controlsWrapper .volumeControl')
@@ -1002,6 +1216,7 @@ three.js r87 or higher
         },
 
         updateCurrentTourPos: function () {
+            if (!this.isTour) { return };
 
             const lat = this._lat;
             const lon = this._lon;
@@ -1211,10 +1426,9 @@ three.js r87 or higher
         },
 
         onProgressClick: function (event, newPercent) {
-            if (
-                this._isVideo &&
-                this._video.readyState === this._video.HAVE_ENOUGH_DATA
-            ) {
+            console.log('onProgressClick');
+
+            if (this._isVideo) {
                 var percent =
                     newPercent != null
                         ? newPercent
@@ -1271,17 +1485,58 @@ three.js r87 or higher
 
         onMouseUp: function (event) {
             if (this._mouseDown && !this._mouseMoved) {
-                var isControlsElement = !!$(event.target).closest('.controlsWrapper')
-                    .length;
+                let controlsClass = this.isTour ? '.tour-controls-wrapper' : '.controlsWrapper',
+                    isControlsElement = !!$(event.target).closest(controlsClass).length;
 
                 if (!isControlsElement) {
-                    $(this.element)
-                        .find('.playButton')
-                        .trigger('click');
+                    this.triggerPlayButton();
                 }
             }
 
             this._mouseDown = false;
+        },
+
+        onDblclick: function (event) {
+            if (!this.tourStarted) {
+                let controlsClass = this.isTour ? '.tour-controls-wrapper' : '.controlsWrapper',
+                    isControlsElement = !!$(event.target).closest(controlsClass).length;
+
+                if (!isControlsElement) {
+                    this.restartVideo(event);
+                }
+            }
+        },
+
+
+
+        onPlaybackRateUp: function () {
+            this.playbackRate += this.CONST.PLAYBACK_STEP;
+
+            if (this.playbackRate > this.CONST.MAX_PLAYBACK_RATE) {
+                this.playbackRate = this.CONST.MAX_PLAYBACK_RATE;
+            }
+
+            this._video.playbackRate = this.playbackRate;
+        },
+        onPlaybackRateDown: function () {
+            this.playbackRate -= this.CONST.PLAYBACK_STEP;
+
+            if (this.playbackRate < this.CONST.MIN_PLAYBACK_RATE) {
+                this.playbackRate = this.CONST.MIN_PLAYBACK_RATE;
+            }
+
+            this._video.playbackRate = this.playbackRate;
+        },
+        triggerPlayButton: function () {
+            if (this.isTour) {
+                $(this.element)
+                    .find('.playback-control')
+                    .trigger('click');
+            } else {
+                $(this.element)
+                    .find('.playButton')
+                    .trigger('click');
+            }
         },
 
         onKeyDown: function (event) {
@@ -1291,6 +1546,8 @@ three.js r87 or higher
                 MINUS: '-',
                 PLUS: '+'
             };
+
+            console.log(event);
 
             if (keyCode >= 37 && keyCode <= 40) {
                 event.preventDefault();
@@ -1303,10 +1560,15 @@ three.js r87 or higher
             } else if (keyCode == 32) {
                 event.preventDefault();
 
-                if (!this._videoLoading) {
-                    $(this.element)
-                        .find('.playButton')
-                        .trigger('click');
+                if (!this._videoLoading && !this._keydown) {
+
+                    if (this.isTour && this.tourStarted) {
+                        this.onTourUpClick(event);
+                    } else {
+                        this.triggerPlayButton();
+                    }
+
+                    this._keydown = true;
                 }
             } else if (key == CHAR.MINUS || key == CHAR.PLUS) {
                 var wheelSpeed = -0.01;
@@ -1327,13 +1589,27 @@ three.js r87 or higher
                 this._camera.setLens(this._fov);
                 event.preventDefault();
             }
+            // fast forward/rewind
+            else if (keyCode == 35 || keyCode == 36) {
+                event.preventDefault();
+
+                if (keyCode == 36) {
+                    this.tourRewind();
+                } else {
+                    this.tourFastForward();
+                }
+
+                this._keydown = true;
+            }
         },
 
         onKeyUp: function (event) {
             var keyCode = event.keyCode;
+            this._keydown = false;
+            console.log(this._keydown);
+
             if (keyCode >= 37 && keyCode <= 40) {
                 event.preventDefault();
-                this._keydown = false;
             }
         },
 
@@ -1441,6 +1717,22 @@ three.js r87 or higher
             }
         },
 
+        tourFastForward: function () {
+            if (this._video.currentTime != this._video.duration) {
+                this._video.currentTime = this._video.duration;
+            }
+        },
+
+        tourRewind: function () {
+            if (this.toursStack.length) {
+                this.tourParams = this.toursStack.pop();
+                this.src = this.tourParams.url;
+
+                this.isFastRewind = true;
+                this.loadVideo();
+            }
+        },
+
         restartVideo: function (event) {
             if (this._videoReady) {
                 this.onProgressClick(event, 0);
@@ -1527,8 +1819,9 @@ three.js r87 or higher
             this._video.pause();
         },
 
-        loadVideo: function (videoFile) {
-            this._video.src = videoFile;
+        loadVideo: function () {
+            this._video.src = this.src;
+            this._video.playbackRate = this.playbackRate;
         },
         unloadVideo: function () {
             // overkill unloading to avoid dreaded video 'pending' bug in Chrome. See https://code.google.com/p/chromium/issues/detail?id=234779

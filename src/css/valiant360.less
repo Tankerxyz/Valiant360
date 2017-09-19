@@ -23,19 +23,76 @@
 
 .Valiant360_default {
 	position: relative;
+	overflow: hidden;
 
 	&:focus {
 		user-select: none;
 	}
 
-	.pointer-overlay {
+	.tour-controls-wrapper {
 		position: absolute;
-		z-index: 2000;
-		width: 105px;
-		height: 105px;
+		display: flex;
+		flex-flow: column;
+		width: 48px;
+    top: 20%;
+		right: 5px;
+		
+
+		> div {
+			height: 48px;
+			width: 48px;
+			background-size: cover;
+			background-position: center center;
+			margin-bottom: 5px;
+			cursor: pointer;
+		}
+		.playback-control {
+			&.play {
+				background-image: url('../img/play.png');
+			}
+			
+			&.pause {
+				background-image: url('../img/pause.png');
+			}
+		}
+		.speed-down {
+			background-image: url('../img/minus.png');
+		}
+
+		.speed-up {
+			background-image: url('../img/plus.png');
+		}
+
+		.fast-forward {
+			background-image: url('../img/fast_forward.png');
+		}
+
+		.fast-rewind {
+			background-image: url('../img/rewind.png');
+		}
+
+		.volume-control {
+			&.unmute {
+				background-image: url('../img/unmute.png');
+			}
+			
+			&.mute {
+				background-image: url('../img/mute.png');
+			}
+		}
+
+	}
+
+	.pointer-overlay {
+		background-size: cover;
+		position: absolute;
+		z-index: 2000;		
+		width: 65px;
+		height: 65px;
 		top: 5px;
 		right: 5px;
 		background: url('../img/pointer.png') 50% 50%;
+		background-size: cover;
 		user-select: none;
 		-webkit-user-drag: none;
 	}
@@ -44,49 +101,116 @@
 		display: block;
 		width: 100%;
 		height: 100%;
-		background: black;
 		position: absolute;
 		opacity: 0;
-		transition: opacity 1s ease-in-out;
+		background: url('../img/hyper_sprite.png') no-repeat top left;
+		width: 910px; height: 514px;
+		animation: hyper_start 2s step-start, hyper_cycle 0.44s step-start 2s infinite;
 
 		&.show {
 			z-index: 2000;
 			opacity: 1;
 		}
+
+
+		@keyframes hyper_start {
+				0% { background-position: 0 0; } 
+				5.4% { background-position: 0 -524px; } 
+				8.1% { background-position: 0 -1048px; } 
+				10.8% { background-position: 0 -1572px; } 
+				13.5% { background-position: 0 -2096px; } 
+				16.2% { background-position: 0 -2620px; } 
+				18.9% { background-position: 0 -3144px; } 
+				21.6% { background-position: 0 -3668px; } 
+				24.3% { background-position: 0 -4192px; } 
+				27.0% { background-position: 0 -4716px; } 
+				29.7% { background-position: 0 -5240px; } 
+				32.4% { background-position: 0 -5764px; } 
+				35.1% { background-position: 0 -6288px; } 
+				37.8% { background-position: 0 -6812px; } 
+				40.5% { background-position: 0 -7336px; } 
+				43.2% { background-position: 0 -7860px; } 
+				45.9% { background-position: 0 -8384px; } 
+				48.6% { background-position: 0 -8908px; } 
+				51.3% { background-position: 0 -9432px; } 
+				54.0% { background-position: 0 -9956px; } 
+				56.7% { background-position: 0 -10480px; } 
+				59.4% { background-position: 0 -11004px; } 
+				62.1% { background-position: 0 -11528px; } 
+				64.8% { background-position: 0 -12052px; } 
+				67.5% { background-position: 0 -12576px; } 
+				70.2% { background-position: 0 -13100px; } 
+				72.9% { background-position: 0 -13624px; } 
+				75.6% { background-position: 0 -14148px; } 
+				78.3% { background-position: 0 -14672px; } 
+				81.0% { background-position: 0 -15196px; } 
+				83.7% { background-position: 0 -15720px; } 
+				86.4% { background-position: 0 -16244px; } 
+				89.1% { background-position: 0 -16768px; } 
+				91.8% { background-position: 0 -17292px; } 
+				94.5% { background-position: 0 -17816px; } 
+				97.2% { background-position: 0 -18340px; } 
+				99.9% { background-position: 0 -18864px; }
+		}
+
+		@keyframes hyper_cycle {
+			0.0% { background-position: 0 -19388px; }
+			12.5% { background-position: 0 -19912px; } 
+			25.0% { background-position: 0 -20436px; } 
+			37.5% { background-position: 0 -20960px; } 
+			50.0% { background-position: 0 -21484px; } 
+			62.5% { background-position: 0 -22008px; } 
+			75.0% { background-position: 0 -22532px; } 
+			87.5% { background-position: 0 -23056px; } 
+			100.0% { background-position: 0 -23580px; } 
+		}
+
 	}
 
 	.tour-controls {
 		position: absolute;
 		display: flex;
 		justify-content: center;
-		visibility: hidden;
+		align-items: flex-end;
 		width: 100%;
-		height: 52px;
-		bottom: 55px;
+		height: 240px;
+		bottom: 30px;
 		opacity: 0;
+    background: url('../img/road.png') center 2px no-repeat;
 		transition: opacity .3s ease-in-out;
-		cursor: pointer;
+		visibility: hidden;
+		cursor: default;
 		user-select: none;
 		-webkit-user-drag: none;
 		
-		&.show {
+		&.showing {
 			visibility: visible;
 			opacity: 1;
 		}
 
 		.tour-button {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			font-size: 40px;
-			width: 50px;
-			height: 50px;
-			background: rgba(0, 0, 0, 0.7);
-			border: 1px solid black;
-			color: white;
+			position: relative;
+			width: 53px;
+			height: 53px;
+			background-repeat: no-repeat;
+			background-position: center center;
+			cursor: pointer;
 
-			&:hover {
-				background: black;
+			&.left-button {
+				background-image: url('../img/left_arrow_navigation.png');
+				left: 5px;
+			}
+
+			&.right-button {
+				background-image: url('../img/right_arrow_navigation.png');
+				right: 4px;
+			}
+
+			&.up-button {
+				height: 75px;
+				width: 54px;
+				top: -28px;
+				background-image: url('../img/forward_arrow_navigation.png');
 			}
 		}
 	}
