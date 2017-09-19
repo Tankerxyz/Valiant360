@@ -208,7 +208,6 @@ three.js r87 or higher
                 this._isVideo = true;
 
                 this.createLoadingOverlay();
-                // this.showWaiting();
 
                 // this.createDebugOverlay();
                 this.createCurrentPositionOverlay();
@@ -285,8 +284,6 @@ three.js r87 or higher
 
                 var percent = this.currentTime * 100 / this.duration;
 
-                // console.log('timeupdate: ', percent, this.currentTime, this.duration, self._video.bytesTotal, self._video.bufferedBytes, self._video.buffered.end(0));
-
                 $(self.element)
                     .find('.controlsWrapper > .valiant-progress-bar')[0]
                     .children[0].setAttribute('style', 'width:' + percent + '%;');
@@ -348,33 +345,25 @@ three.js r87 or higher
             var isWaiting = false;
 
             this._video.addEventListener('waiting', function () {
-                // self.showWaiting();
                 self.showOverlay();
                 isWaiting = true;
             });
 
             this._video.addEventListener('playing', function () {
-                // self.hideWaiting();
                 self.hideOverlay();
                 isWaiting = false;
             });
 
             this._video.onended = function () {
-
                 if (self.isFastForward) {
                     self.isFastForward = false;
                     self.showTour(true);
                 } else {
                     self.showTour();
                 }
-
-                console.log('onended');
             }
 
             this._video.onloadeddata = function () {
-                console.log('onloadeddata');
-
-
                 self._video.onseeked = function () {
 
                     if (self.isFastForward && self._video.currentTime == self._video.duration) {
@@ -414,7 +403,6 @@ three.js r87 or higher
             };
 
             this._video.onseeking = function () {
-                // self.showWaiting();
                 self.showOverlay();
             };
             this._video.preload = 'auto';
@@ -626,7 +614,6 @@ three.js r87 or higher
         recalculateOverlayPosition: function () {
             var parentHeight = $(this.element).height();
             var parentWidth = $(this.element).width();
-            console.log(this.overlayEl)
             var width = this.overlayEl.width();
             var height = this.overlayEl.height();
 
@@ -660,10 +647,7 @@ three.js r87 or higher
 
         hideTour: function () {
             if (this.tourStarted) {
-                console.log('hideTour', this.tourStarted);
-
                 $(this.element).find('.tour-controls').removeClass('showing');
-
                 this.tourStarted = false;
             }
         },
@@ -775,10 +759,7 @@ three.js r87 or higher
 
         updateTourPosition: function (direction) {
             var currentTour = this.getCurrentTour();
-
             this.setEasyPosition(currentTour.pos.lat, currentTour.pos.lon, this.CONST.ANIMATION_TIME, direction);
-
-            console.log('currentTour: ', currentTour);
         },
 
         getCurrentTour: function () {
@@ -792,8 +773,6 @@ three.js r87 or higher
                     this.tourParams = json;
                     this.src = json.url;
                     this.currentTourPos = 0;
-
-                    console.log('currentLoadedParams: ', json, url);
                 });
         },
 
@@ -827,8 +806,6 @@ three.js r87 or higher
                 clearInterval(this.h_interval);
             }
 
-            // console.log(lon, this._lon, needToUpdateLon, stepLon);
-
             const fn = () => {
                 if (count-- <= 1) { clearInterval(this.h_interval); this.h_interval = null; }
 
@@ -850,7 +827,6 @@ three.js r87 or higher
                     this._lon += stepLon;
                 }
 
-                // console.log(Date.now() - startDate, count, this._lat, this._lon);
             }
 
             fn();
@@ -945,7 +921,6 @@ three.js r87 or higher
         },
 
         onDeviceMove: function (event) {
-            // console.log(event);
 
             if (typeof event.rotationRate === 'undefined') return;
             var x = event.rotationRate.alpha;
@@ -1284,12 +1259,7 @@ three.js r87 or higher
                 }
             }
 
-            if (!currentTour) {
-                this.currentTourPos = 0;
-            } else {
-                this.currentTourPos = currentTour.i;
-            }
-
+            this.currentTourPos = currentTour ? currentTour.i : 0;
         },
 
         getCalcedTours: function () {
@@ -1302,59 +1272,15 @@ three.js r87 or higher
                 const nextPos = (i === tours.length - 1 ? tours[0] : tours[i + 1]).pos.lon;
 
                 const curTourPos = {
-                    pos: curPos
+                    pos: curPos,
+                    prevPos: curPos < prevPos ? (((this.CONST.MAX_LON - prevPos) + curPos) / 2) + prevPos : ((curPos - prevPos) / 2) + prevPos,
+                    nextPos: nextPos < curPos ? (((this.CONST.MAX_LON - curPos) + nextPos) / 2) + curPos : ((nextPos - curPos) / 2) + curPos
                 };
 
-                curTourPos.prevPos = curPos < prevPos ? (((this.CONST.MAX_LON - prevPos) / 2) + prevPos) : ((curPos - prevPos) / 2) + prevPos;
-                curTourPos.nextPos = nextPos < curPos ? (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos : ((nextPos - curPos) / 2) + curPos;
-
-                if (nextPos < curPos) {
-                    // var a = (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos;
-                    var a = (((this.CONST.MAX_LON - curPos) + nextPos) / 2) + curPos
-
-                    if (a >= 360) {
-                        a -= 360;
-                    }
-                } else {
-                    var a = ((nextPos - curPos) / 2) + curPos;
-                }
-
-                if (curPos < prevPos) {
-                    var b = (((this.CONST.MAX_LON - prevPos) + curPos) / 2) + prevPos;
-
-                    if (b >= 360) {
-                        b -= 360;
-                    }
-                } else {
-                    var b = ((curPos - prevPos) / 2) + prevPos;
-                }
-
-                curTourPos.prevPos = b;
-                curTourPos.nextPos = a;
-
-                if (a === 360) {
-                    // debugger;
-                }
-
-                // curTourPos.nextPos = 
-                // ? (((this.CONST.MAX_LON + curPos) - nextPos) / 2) + nextPos // (((360 + 270) - 90) / 2) + 90
-                // // ? (((this.CONST.MAX_LON - curPos) / 2) + nextPos)
-                // : ((nextPos - curPos) / 2) + curPos;
-
-
+                if (curTourPos.prevPos >= 360) { curTourPos.prevPos -= 360 };
+                if (curTourPos.nextPos >= 360) { curTourPos.nextPos -= 360 };
 
                 calcedTours.push(curTourPos);
-
-
-                /*
-                    get prev tour
-                    get current tour
-                    get next tour
-                    if tour last get first tour
-                    if tour first get last tour
-                    minHalf = (curTour.lon - prevTour.lon) / 2
-                    maxHalf = nextTour.lon - curTour.lon
-                */
             }
 
             return calcedTours;
@@ -1602,8 +1528,6 @@ three.js r87 or higher
                 PLUS: '+'
             };
 
-            console.log(event);
-
             if (keyCode >= 37 && keyCode <= 40) {
                 event.preventDefault();
                 this._keydown = true;
@@ -1661,7 +1585,6 @@ three.js r87 or higher
         onKeyUp: function (event) {
             var keyCode = event.keyCode;
             this._keydown = false;
-            console.log(this._keydown);
 
             if (keyCode >= 37 && keyCode <= 40) {
                 event.preventDefault();
@@ -1829,14 +1752,14 @@ three.js r87 or higher
 
         render: function () {
 
-            var debugPanel = $(this.element).find('.debug-panel');
-            debugPanel.find('.lat').text(this._lat);
-            debugPanel.find('.lon').text(this._lon);
-            debugPanel.find('.current-position').text(this.currentTourPos);
+            // var debugPanel = $(this.element).find('.debug-panel');
+            // debugPanel.find('.lat').text(this._lat);
+            // debugPanel.find('.lon').text(this._lon);
+            // debugPanel.find('.current-position').text(this.currentTourPos);
 
-            if (this.tourParams && this.getCurrentTour()) {
-                debugPanel.find('.params-url').text(this.getCurrentTour().params);
-            }
+            // if (this.tourParams && this.getCurrentTour()) {
+            //     debugPanel.find('.params-url').text(this.getCurrentTour().params);
+            // }
 
 
             this._lat = Math.max(-85, Math.min(85, this._lat));
