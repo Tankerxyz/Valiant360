@@ -34,9 +34,16 @@
 		display: flex;
 		flex-flow: column;
 		width: 48px;
-    top: 20%;
+		top: 20%;
+		opacity: 1;
 		right: 5px;
 		
+		transition: opacity 0.2s ease-in-out;
+
+		&.hiding {
+			opacity: 0;
+			z-index: -1;
+		}
 
 		> div {
 			height: 48px;
@@ -105,13 +112,12 @@
 		opacity: 0;
 		background: url('../img/hyper_sprite.png') no-repeat top left;
 		width: 910px; height: 514px;
-		animation: hyper_start 2s step-start, hyper_cycle 0.44s step-start 2s infinite;
 
-		&.show {
+		&.showing {
 			z-index: 2000;
 			opacity: 1;
+			animation: hyper_start 8s step-start, hyper_cycle 1.94s step-start 8s infinite;
 		}
-
 
 		@keyframes hyper_start {
 				0% { background-position: 0 0; } 
@@ -154,7 +160,7 @@
 		}
 
 		@keyframes hyper_cycle {
-			0.0% { background-position: 0 -19388px; }
+			0% { background-position: 0 -19388px; }
 			12.5% { background-position: 0 -19912px; } 
 			25.0% { background-position: 0 -20436px; } 
 			37.5% { background-position: 0 -20960px; } 
